@@ -23,13 +23,13 @@ using namespace std;
 
 #define FIXED_TIMESTEP 0.0166666f
 #define MAX_TIMESTEPS 6
-#define LEVEL_HEIGHT_1
-#define LEVEL_WIDTH_1
-#define LEVEL_HEIGHT_2
-#define LEVEL_WIDTH_2
+#define LEVEL_HEIGHT_1 60
+#define LEVEL_WIDTH_1 80
+#define LEVEL_HEIGHT_2 40
+#define LEVEL_WIDTH_2 180
 #define SPRITE_COUNT_X 30
-#define SPRITE_COUNT_Y 30
-#define TILE_SIZE 0.2f
+#define SPRITE_COUNT_Y 16
+#define TILE_SIZE 0.4f
 
 unsigned char **levelData_1;
 unsigned char **levelData_2;
@@ -161,6 +161,27 @@ bool readEntityData(std::ifstream &stream){
 std::vector<float> vertexData;
 std::vector<float> texCoordData;
 
+GLuint sheet;
+
+void drawMap(){
+	program->setModelMatrix(modelMatrix);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	glUseProgram(program->programID);
+	glVertexAttribPointer(program->positionAttribute, 2, GL_FLOAT, false, 0, vertexData.data());
+	glEnableVertexAttribArray(program->positionAttribute);
+	glVertexAttribPointer(program->texCoordAttribute, 2, GL_FLOAT, false, 0, texCoordData.data());
+	glEnableVertexAttribArray(program->texCoordAttribute);
+
+	modelMatrix.identity();
+	program->setModelMatrix(modelMatrix);
+
+	glBindTexture(GL_TEXTURE_2D, sheet);
+	glDrawArrays(GL_TRIANGLES, 0, vertexData.size() / 2);
+	glDisableVertexAttribArray(program->positionAttribute);
+	glDisableVertexAttribArray(program->texCoordAttribute);
+}
+
 void makeMap(unsigned char **levelData, int LEVEL_HEIGHT, int LEVEL_WIDTH){
 	texCoordData.clear();
 	vertexData.clear();
@@ -195,27 +216,7 @@ void makeMap(unsigned char **levelData, int LEVEL_HEIGHT, int LEVEL_WIDTH){
 			}
 		}
 	}
-}
-
-GLuint sheet;
-
-void drawMap(){
-	program->setModelMatrix(modelMatrix);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	glUseProgram(program->programID);
-	glVertexAttribPointer(program->positionAttribute, 2, GL_FLOAT, false, 0, vertexData.data());
-	glEnableVertexAttribArray(program->positionAttribute);
-	glVertexAttribPointer(program->texCoordAttribute, 2, GL_FLOAT, false, 0, texCoordData.data());
-	glEnableVertexAttribArray(program->texCoordAttribute);
-
-	modelMatrix.identity();
-	program->setModelMatrix(modelMatrix);
-
-	glBindTexture(GL_TEXTURE_2D, sheet);
-	glDrawArrays(GL_TRIANGLES, 0, vertexData.size() / 2);
-	glDisableVertexAttribArray(program->positionAttribute);
-	glDisableVertexAttribArray(program->texCoordAttribute);
+	drawMap();
 }
 
 SDL_Window* displayWindow;
@@ -230,6 +231,57 @@ int main(int argc, char *argv[])
 		glewInit();
 	#endif
 
+		glViewport(0, 0, 640, 360);
+		sheet = LoadTexture("spritesheet.png");
+
+		//Reading first tile map
+		ifstream infile("FirstTiledMapOne.txt");
+		string line;
+		while (getline(infile, line)){
+			if (line == "[header]"){
+				if (!readHeader(infile, levelData_1)){
+					break;
+				}
+			}
+			else if (line == "[layer]"){
+				readLayerData(infile, levelData_1);
+			}
+			else if (line == "[Object Layer 1]"){
+				readEntityData(infile);
+			}
+		}
+
+		//Reading second tile map
+		/*ifstream infile("SecondTiledMapOne.txt");
+		string line;
+		while (getline(infile, line)){
+			if (line == "[header]"){
+				if (!readHeader(infile, levelData_2)){
+					break;
+				}
+			}
+			else if (line == "[layer]"){
+				readLayerData(infile, levelData_2);
+			}
+			else if (line == "[Object Layer 1]"){
+				readEntityData(infile);
+			}
+		}*/
+
+		program = new ShaderProgram(RESOURCE_FOLDER"vertex_textured.glsl", RESOURCE_FOLDER"fragment_textured.glsl");
+
+		projectionMatrix.setOrthoProjection(-3.55f, 3.55f, -4.0f, 4.0f, -1.0f, 1.0f);
+
+		enum GameState { STATE_ONE, STATE_TWO, STATE_THREE };
+
+		int state = STATE_ONE;
+
+		float lastFrameTicks = 0.0f;
+		float ticks = (float)SDL_GetTicks() / 1000.0f;
+		lastFrameTicks = ticks;
+
+		glUseProgram(program->programID);
+
 	SDL_Event event;
 	bool done = false;
 	while (!done) {
@@ -238,7 +290,27 @@ int main(int argc, char *argv[])
 				done = true;
 			}
 		}
+
+		float ticks = (float)SDL_GetTicks() / 1000.0f;
+		float elapsed = ticks - lastFrameTicks;
+		lastFrameTicks = ticks;
+
 		glClear(GL_COLOR_BUFFER_BIT);
+
+		program->setProjectionMatrix(projectionMatrix);
+		program->setViewMatrix(viewMatrix);
+
+		glEnable(GL_BLEND);
+
+		switch (state){
+		case STATE_ONE:
+			makeMap(levelData_1, LEVEL_HEIGHT_1, LEVEL_WIDTH_1);
+			break;
+		case STATE_TWO:
+			makeMap(levelData_2, LEVEL_HEIGHT_2, LEVEL_WIDTH_2);
+			break;
+		}
+
 		SDL_GL_SwapWindow(displayWindow);
 	}
 

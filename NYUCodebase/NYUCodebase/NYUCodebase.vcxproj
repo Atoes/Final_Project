@@ -87,6 +87,13 @@
     <None Include="fragment_textured.glsl" />
     <None Include="vertex.glsl" />
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="FirstTiledMapOne.txt" />
+    <Text Include="SecondTiledMap.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="spritesheet.png" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

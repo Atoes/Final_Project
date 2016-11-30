@@ -38,4 +38,17 @@
     <None Include="vertex.glsl" />
     <None Include="fragment_textured.glsl" />
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="FirstTiledMapOne.txt">
+      <Filter>Resource Files</Filter>
+    </Text>
+    <Text Include="SecondTiledMap.txt">
+      <Filter>Resource Files</Filter>
+    </Text>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="spritesheet.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+  </ItemGroup>
 </Project>
