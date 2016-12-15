@@ -23,10 +23,6 @@ using namespace std;
 
 #define FIXED_TIMESTEP 0.0166666f
 #define MAX_TIMESTEPS 6
-#define LEVEL_HEIGHT_1 60
-#define LEVEL_WIDTH_1 80
-#define LEVEL_HEIGHT_2
-#define LEVEL_WIDTH_2
 #define SPRITE_COUNT_X 30
 #define SPRITE_COUNT_Y 16
 #define TILE_SIZE 0.2f
@@ -199,17 +195,21 @@ void DrawText(ShaderProgram *program, GLuint fontTexture, std::string text, floa
 	glDisableVertexAttribArray(program->texCoordAttribute);
 }
 
+GLuint sheet;
 std::vector<float> vertexData;
 std::vector<float> texCoordData;
 void makeMap(){
-	for (int y = 0; y < LEVEL_HEIGHT_1; y++){
-		for (int x = 0; x < LEVEL_WIDTH_1; x++){
+	for (int y = 0; y < mapHeight; y++){
+		for (int x = 0; x < mapWidth; x++){
 			if (levelData[y][x] != 0){
 				float u = (float)(((int)levelData[y][x]) % SPRITE_COUNT_X) / (float)SPRITE_COUNT_X;
 				float v = (float)(((int)levelData[y][x]) / SPRITE_COUNT_X) / (float)SPRITE_COUNT_Y;
 
 				float spriteWidth = 1.0f / (float)SPRITE_COUNT_X;
 				float spriteHeight = 1.0f / (float)SPRITE_COUNT_Y;
+
+				vertexData.clear();
+				texCoordData.clear();
 
 				vertexData.insert(vertexData.end(), {
 					TILE_SIZE * x, -TILE_SIZE * y,
@@ -253,6 +253,24 @@ void drawMap(GLuint sheet){
 	glDisableVertexAttribArray(program->texCoordAttribute);
 }
 
+void readFile(string file){
+	ifstream infile(file);
+	string line;
+	while (getline(infile, line)){
+		if (line == "[header]"){
+			if (!readHeader(infile)){
+				break;
+			}
+		}
+		else if (line == "[layer]"){
+			readLayerData(infile);
+		}
+		else if (line == "[Object Layer 1]"){
+			readEntityData(infile);
+		}
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	SDL_Init(SDL_INIT_VIDEO);
@@ -269,23 +287,9 @@ int main(int argc, char *argv[])
 
 	program = new ShaderProgram(RESOURCE_FOLDER"vertex_textured.glsl", RESOURCE_FOLDER"fragment_textured.glsl");
 
-	/*ifstream infile("FirstTiledMapOne.txt");
-	string line;
-	while (getline(infile, line)){
-		if (line == "[header]"){
-			if (!readHeader(infile)){
-				break;
-			}
-		}
-		else if (line == "[layer]"){
-			readLayerData(infile);
-		}
-		else if (line == "[Object Layer 1]"){
-			readEntityData(infile);
-		}
-	}*/
+	readFile("FirstTiledMapOne.txt");
 
-	//makeMap();
+	makeMap();
 
 	float lastFrameTicks = 0.0f;
 	float ticks = (float)SDL_GetTicks() / 1000.0f;
@@ -293,7 +297,7 @@ int main(int argc, char *argv[])
 
 	projectionMatrix.setOrthoProjection(-3.55f, 3.55f, -4.0f, 4.0f, -1.0f, 1.0f);
 	enum GameState { STATE_MENU, STATE_LEVEL_ONE, STATE_LEVEL_TWO, STATE_LEVEL_THREE, STATE_WIN, STATE_LOSE, STATE_QUIT };
-	int state = STATE_MENU;
+	int state = STATE_QUIT;
 
 	glUseProgram(program->programID);
 
@@ -335,12 +339,12 @@ int main(int argc, char *argv[])
 			modelMatrix.identity();
 			modelMatrix.Translate(-3.0f, 0.0f, 0.0f);
 			program->setModelMatrix(modelMatrix);
-			DrawText(program, font, "ARROW KEYS TO MOVE", 0.2f, 0.00001f);
+			DrawText(program, font, "A,D TO MOVE", 0.2f, 0.00001f);
 
 			modelMatrix.identity();
 			modelMatrix.Translate(-3.0f, -1.0f, 0.0f);
 			program->setModelMatrix(modelMatrix);
-			DrawText(program, font, "SPACE TO JUMP", 0.2f, 0.00001f);
+			DrawText(program, font, "W TO JUMP", 0.2f, 0.00001f);
 
 			if (keys[SDL_SCANCODE_E]){
 				state = STATE_LEVEL_ONE;
@@ -348,18 +352,72 @@ int main(int argc, char *argv[])
 			break;
 
 		case(STATE_LEVEL_ONE) :
-			tileToWorldCoordinates(&x, &y, 10, 10);
-			viewMatrix.Translate(-x, -y, 0.0f);
+			drawMap(sheet);
 			break;
 		case(STATE_LEVEL_TWO) :
+			drawMap(sheet);
 			break;
 		case(STATE_LEVEL_THREE) :
+			drawMap(sheet);
 			break;
 		case(STATE_WIN) :
+			modelMatrix.identity();
+			modelMatrix.Translate(-3.0f, 2.0f, 0.0f);
+			program->setModelMatrix(modelMatrix);
+			DrawText(program, font, "YOU HAVE ESCAPED", 0.2f, 0.001f);
+
+			modelMatrix.identity();
+			modelMatrix.Translate(-3.0f, 1.0f, 0.0f);
+			program->setModelMatrix(modelMatrix);
+			DrawText(program, font, "PRESS E TO PLAY AGAIN", 0.2f, 0.001f);
+
+			if (keys[SDL_SCANCODE_E]){
+				readFile("FirstTiledMapOne.txt");
+				makeMap();
+				state = STATE_LEVEL_ONE;
+			}
 			break;
 		case(STATE_LOSE) :
+			modelMatrix.identity();
+			modelMatrix.Translate(-3.0f, 2.0f, 0.0f);
+			program->setModelMatrix(modelMatrix);
+			DrawText(program, font, "YOU HAVE DIED", 0.2f, 0.001f);
+
+			modelMatrix.identity();
+			modelMatrix.Translate(-3.0f, 1.0f, 0.0f);
+			program->setModelMatrix(modelMatrix);
+			DrawText(program, font, "PRESS E TO RESTART", 0.2f, 0.001f);
+
+			if (keys[SDL_SCANCODE_E]){
+				readFile("FirstTiledMapOne.txt");
+				makeMap();
+				state = STATE_LEVEL_ONE;
+			}
 			break;
 		case(STATE_QUIT) :
+			modelMatrix.identity();
+			modelMatrix.Translate(-3.0f, 2.0f, 0.0f);
+			program->setModelMatrix(modelMatrix);
+			DrawText(program, font, "YOU HAVE QUIT", 0.2f, 0.001f);
+
+			modelMatrix.identity();
+			modelMatrix.Translate(-3.0f, 1.0f, 0.0f);
+			program->setModelMatrix(modelMatrix);
+			DrawText(program, font, "PRESS E TO RESTART", 0.2f, 0.001f);
+
+			modelMatrix.identity();
+			modelMatrix.Translate(-3.0f, 0.0f, 0.0f);
+			program->setModelMatrix(modelMatrix);
+			DrawText(program, font, "PRESS Q TO EXIT", 0.2f, 0.001f);
+
+			if (keys[SDL_SCANCODE_E]){
+				readFile("FirstTiledMapOne.txt");
+				makeMap();
+				state = STATE_LEVEL_ONE;
+			}
+			else if (keys[SDL_SCANCODE_Q]){
+				SDL_Quit();
+			}
 			break;
 		}
 
