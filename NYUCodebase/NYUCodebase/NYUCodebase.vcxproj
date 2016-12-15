@@ -92,7 +92,9 @@
     <Text Include="SecondTiledMap.txt" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="font2.png" />
     <Image Include="spritesheet.png" />
+    <Image Include="tiles.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

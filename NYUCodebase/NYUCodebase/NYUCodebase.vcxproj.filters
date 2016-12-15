@@ -50,5 +50,11 @@
     <Image Include="spritesheet.png">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="font2.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="tiles.png">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>
