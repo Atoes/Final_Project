@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
 
 	glViewport(0, 0, 1000, 600);
 	GLuint font = LoadTexture("font2.png");
-	//GLuint sheet = LoadTexture("spritesheet.png");
+	GLuint sheet = LoadTexture("spritesheet.png");
 
 	program = new ShaderProgram(RESOURCE_FOLDER"vertex_textured.glsl", RESOURCE_FOLDER"fragment_textured.glsl");
 
