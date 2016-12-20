@@ -4,6 +4,7 @@
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <SDL_image.h>
+#include <SDL_mixer.h>
 
 #include "ShaderProgram.h"
 #include <vector>
@@ -283,7 +284,15 @@ int main(int argc, char *argv[])
 
 	glViewport(0, 0, 1000, 600);
 	GLuint font = LoadTexture("font2.png");
-	GLuint sheet = LoadTexture("spritesheet.png");
+	//sheet = LoadTexture("spritesheet.png");
+	GLuint background = LoadTexture("background.png");
+	GLuint winScreen = LoadTexture("win.png");
+	GLuint loseScreen = LoadTexture("lose.png");
+
+	Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 4096);
+
+	Mix_Music *music;
+	music = Mix_LoadMUS("music.mp3");
 
 	program = new ShaderProgram(RESOURCE_FOLDER"vertex_textured.glsl", RESOURCE_FOLDER"fragment_textured.glsl");
 
@@ -296,10 +305,11 @@ int main(int argc, char *argv[])
 	lastFrameTicks = ticks;
 
 	projectionMatrix.setOrthoProjection(-3.55f, 3.55f, -4.0f, 4.0f, -1.0f, 1.0f);
-	enum GameState { STATE_MENU, STATE_LEVEL_ONE, STATE_LEVEL_TWO, STATE_LEVEL_THREE, STATE_WIN, STATE_LOSE, STATE_QUIT };
-	int state = STATE_QUIT;
+	enum GameState { STATE_MENU, STATE_LEVEL_ONE, STATE_LEVEL_TWO, STATE_LEVEL_THREE, STATE_WIN, STATE_LOSE };
+	int state = STATE_MENU;
 
 	glUseProgram(program->programID);
+	Mix_PlayMusic(music, -1);
 
 	SDL_Event event;
 	bool done = false;
@@ -323,28 +333,48 @@ int main(int argc, char *argv[])
 		const Uint8 *keys = SDL_GetKeyboardState(NULL);
 		float x = 0;
 		float y = 0;
+		float vertices[] = { -3.55f, -4.0f, 3.55f, -4.0f, 3.55f, 4.0f, -3.55f, -4.0f, 3.55f, 4.0f, -3.55f, 4.0f };
+		float texCoords[] = { 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0 };
 
 		switch (state){
 		case STATE_MENU :
-			modelMatrix.identity();
-			modelMatrix.Translate(-3.0f, 2.0f, 0.0f);
+
 			program->setModelMatrix(modelMatrix);
-			DrawText(program, font, "NAME", 0.2f, 0.001f);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+			glUseProgram(program->programID);
+			glVertexAttribPointer(program->positionAttribute, 2, GL_FLOAT, false, 0, vertices);
+			glEnableVertexAttribArray(program->positionAttribute);
+			glVertexAttribPointer(program->texCoordAttribute, 2, GL_FLOAT, false, 0, texCoords);
+			glEnableVertexAttribArray(program->texCoordAttribute);
 
 			modelMatrix.identity();
-			modelMatrix.Translate(-3.0f, 1.0f, 0.0f);
 			program->setModelMatrix(modelMatrix);
-			DrawText(program, font, "PRESS E TO BEGIN", 0.2f, 0.00001f);
+
+			glBindTexture(GL_TEXTURE_2D, background);
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			glDisableVertexAttribArray(program->positionAttribute);
+			glDisableVertexAttribArray(program->texCoordAttribute);
 
 			modelMatrix.identity();
-			modelMatrix.Translate(-3.0f, 0.0f, 0.0f);
+			modelMatrix.Translate(-1.4f, 2.0f, 0.0f);
 			program->setModelMatrix(modelMatrix);
-			DrawText(program, font, "A,D TO MOVE", 0.2f, 0.00001f);
+			DrawText(program, font, "MAZE CAVE CRAZE", 0.2f, 0.001f);
 
 			modelMatrix.identity();
-			modelMatrix.Translate(-3.0f, -1.0f, 0.0f);
+			modelMatrix.Translate(-1.7f, 1.0f, 0.0f);
 			program->setModelMatrix(modelMatrix);
-			DrawText(program, font, "W TO JUMP", 0.2f, 0.00001f);
+			DrawText(program, font, "PRESS \"E\" TO BEGIN", 0.2f, 0.00001f);
+
+			modelMatrix.identity();
+			modelMatrix.Translate(-1.4f, 0.0f, 0.0f);
+			program->setModelMatrix(modelMatrix);
+			DrawText(program, font, "\"A\",\"D\" TO MOVE", 0.2f, 0.00001f);
+
+			modelMatrix.identity();
+			modelMatrix.Translate(-1.0f, -1.0f, 0.0f);
+			program->setModelMatrix(modelMatrix);
+			DrawText(program, font, "\"W\" TO JUMP", 0.2f, 0.00001f);
 
 			if (keys[SDL_SCANCODE_E]){
 				state = STATE_LEVEL_ONE;
@@ -361,52 +391,79 @@ int main(int argc, char *argv[])
 			drawMap(sheet);
 			break;
 		case(STATE_WIN) :
+
+			program->setModelMatrix(modelMatrix);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+			glUseProgram(program->programID);
+			glVertexAttribPointer(program->positionAttribute, 2, GL_FLOAT, false, 0, vertices);
+			glEnableVertexAttribArray(program->positionAttribute);
+			glVertexAttribPointer(program->texCoordAttribute, 2, GL_FLOAT, false, 0, texCoords);
+			glEnableVertexAttribArray(program->texCoordAttribute);
+
 			modelMatrix.identity();
-			modelMatrix.Translate(-3.0f, 2.0f, 0.0f);
+			program->setModelMatrix(modelMatrix);
+
+			glBindTexture(GL_TEXTURE_2D, winScreen);
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			glDisableVertexAttribArray(program->positionAttribute);
+			glDisableVertexAttribArray(program->texCoordAttribute);
+
+			modelMatrix.identity();
+			modelMatrix.Translate(-3.0f, 0.0f, 0.0f);
 			program->setModelMatrix(modelMatrix);
 			DrawText(program, font, "YOU HAVE ESCAPED", 0.2f, 0.001f);
 
 			modelMatrix.identity();
-			modelMatrix.Translate(-3.0f, 1.0f, 0.0f);
+			modelMatrix.Translate(-3.0f, -1.0f, 0.0f);
 			program->setModelMatrix(modelMatrix);
 			DrawText(program, font, "PRESS E TO PLAY AGAIN", 0.2f, 0.001f);
+
+			modelMatrix.identity();
+			modelMatrix.Translate(-3.0f, -2.0f, 0.0f);
+			program->setModelMatrix(modelMatrix);
+			DrawText(program, font, "PRESS Q TO EXIT", 0.2f, 0.001f);
 
 			if (keys[SDL_SCANCODE_E]){
 				readFile("FirstTiledMapOne.txt");
 				makeMap();
 				state = STATE_LEVEL_ONE;
 			}
+			else if (keys[SDL_SCANCODE_Q]){
+				SDL_Quit();
+			}
 			break;
 		case(STATE_LOSE) :
+
+			program->setModelMatrix(modelMatrix);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+			glUseProgram(program->programID);
+			glVertexAttribPointer(program->positionAttribute, 2, GL_FLOAT, false, 0, vertices);
+			glEnableVertexAttribArray(program->positionAttribute);
+			glVertexAttribPointer(program->texCoordAttribute, 2, GL_FLOAT, false, 0, texCoords);
+			glEnableVertexAttribArray(program->texCoordAttribute);
+
 			modelMatrix.identity();
-			modelMatrix.Translate(-3.0f, 2.0f, 0.0f);
+			program->setModelMatrix(modelMatrix);
+
+			glBindTexture(GL_TEXTURE_2D, loseScreen);
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			glDisableVertexAttribArray(program->positionAttribute);
+			glDisableVertexAttribArray(program->texCoordAttribute);
+
+			modelMatrix.identity();
+			modelMatrix.Translate(-1.3f, 2.0f, 0.0f);
 			program->setModelMatrix(modelMatrix);
 			DrawText(program, font, "YOU HAVE DIED", 0.2f, 0.001f);
 
 			modelMatrix.identity();
-			modelMatrix.Translate(-3.0f, 1.0f, 0.0f);
-			program->setModelMatrix(modelMatrix);
-			DrawText(program, font, "PRESS E TO RESTART", 0.2f, 0.001f);
-
-			if (keys[SDL_SCANCODE_E]){
-				readFile("FirstTiledMapOne.txt");
-				makeMap();
-				state = STATE_LEVEL_ONE;
-			}
-			break;
-		case(STATE_QUIT) :
-			modelMatrix.identity();
-			modelMatrix.Translate(-3.0f, 2.0f, 0.0f);
-			program->setModelMatrix(modelMatrix);
-			DrawText(program, font, "YOU HAVE QUIT", 0.2f, 0.001f);
-
-			modelMatrix.identity();
-			modelMatrix.Translate(-3.0f, 1.0f, 0.0f);
+			modelMatrix.Translate(-1.7f, 1.0f, 0.0f);
 			program->setModelMatrix(modelMatrix);
 			DrawText(program, font, "PRESS E TO RESTART", 0.2f, 0.001f);
 
 			modelMatrix.identity();
-			modelMatrix.Translate(-3.0f, 0.0f, 0.0f);
+			modelMatrix.Translate(-1.3f, 0.0f, 0.0f);
 			program->setModelMatrix(modelMatrix);
 			DrawText(program, font, "PRESS Q TO EXIT", 0.2f, 0.001f);
 
@@ -423,7 +480,7 @@ int main(int argc, char *argv[])
 
 		SDL_GL_SwapWindow(displayWindow);
 	}
-
+	Mix_FreeMusic(music);
 	SDL_Quit();
 	return 0;
 }

@@ -90,11 +90,18 @@
   <ItemGroup>
     <Text Include="FirstTiledMapOne.txt" />
     <Text Include="SecondTiledMap.txt" />
+    <Text Include="ThirdTileMap.txt" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="background.png" />
     <Image Include="font2.png" />
+    <Image Include="lose.png" />
     <Image Include="spritesheet.png" />
     <Image Include="tiles.png" />
+    <Image Include="win.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Media Include="music.mp3" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -45,6 +45,9 @@
     <Text Include="SecondTiledMap.txt">
       <Filter>Resource Files</Filter>
     </Text>
+    <Text Include="ThirdTileMap.txt">
+      <Filter>Resource Files</Filter>
+    </Text>
   </ItemGroup>
   <ItemGroup>
     <Image Include="spritesheet.png">
@@ -56,5 +59,19 @@
     <Image Include="tiles.png">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="background.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="win.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="lose.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Media Include="music.mp3">
+      <Filter>Resource Files</Filter>
+    </Media>
   </ItemGroup>
 </Project>
