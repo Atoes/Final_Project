@@ -96,7 +96,11 @@
     <Image Include="background.png" />
     <Image Include="font2.png" />
     <Image Include="lose.png" />
-    <Image Include="spritesheet.png" />
+    <Image Include="spritesheet.png">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</DeploymentContent>
+      <DeploymentContent>false</DeploymentContent>
+    </Image>
     <Image Include="tiles.png" />
     <Image Include="win.png" />
   </ItemGroup>
