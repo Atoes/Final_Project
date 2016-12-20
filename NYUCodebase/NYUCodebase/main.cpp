@@ -66,6 +66,10 @@ void tileToWorldCoordinates(float *worldX, float *worldY, int gridX, int gridY){
 	*worldY = (float)(gridY * TILE_SIZE);
 }
 
+void placeEntity(float x, float y){
+	
+}
+
 bool readHeader(std::ifstream &stream){
 	string line = "";
 	mapWidth = -1;
