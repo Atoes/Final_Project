@@ -26,7 +26,7 @@ using namespace std;
 #define FIXED_TIMESTEP 0.0166666f
 #define MAX_TIMESTEPS 6
 #define SPRITE_COUNT_X 30
-#define SPRITE_COUNT_Y 16
+#define SPRITE_COUNT_Y 30
 #define TILE_SIZE 0.2f
 
 unsigned char **levelData;
@@ -379,7 +379,7 @@ public:
 
 	//-----------------------
 	//Movement for GameObject
-	void move(float& elapsed){  //function to update positions
+	void move(float& elapsed, gameObjects& player){  //function to update positions
 		const Uint8 *keys = SDL_GetKeyboardState(NULL);
 		direction = 0.0;
 		if (this->type == hero){
@@ -612,9 +612,9 @@ void render(){
 	}
 }
 void update(float elapsed){
-	player.move(elapsed);
+	player.move(elapsed, player);
 	for (int i = 0; i < enemies.size(); i++){
-		enemies.at(i).move(elapsed);
+		enemies.at(i).move(elapsed, player);
 	}
 }
 
@@ -712,7 +712,7 @@ int main(int argc, char *argv[])
 
 	glViewport(0, 0, 1000, 600);
 	GLuint font = LoadTexture("font2.png");
-	//sheet = LoadTexture("spritesheet.png");
+	sheet = LoadTexture("spritesheet.png");
 	GLuint background = LoadTexture("background.png");
 	GLuint winScreen = LoadTexture("win.png");
 	GLuint loseScreen = LoadTexture("lose.png");
