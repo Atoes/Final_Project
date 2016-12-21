@@ -726,7 +726,7 @@ int main(int argc, char *argv[])
 
 		projectionMatrix.setOrthoProjection(-3.55f, 3.55f, -4.0f, 4.0f, -1.0f, 1.0f);
 		enum GameState { STATE_MENU, STATE_LEVEL_ONE, STATE_LEVEL_TWO, STATE_LEVEL_THREE, STATE_WIN, STATE_LOSE };
-		int state = STATE_LEVEL_THREE;
+		int state = STATE_MENU;
 
 		if (state == STATE_MENU){
 			readFile("FirstTiledMap.txt");
