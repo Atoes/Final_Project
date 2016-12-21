@@ -1,5 +1,5 @@
 #ifdef _WINDOWS
-	#include <GL/glew.h>
+#include <GL/glew.h>
 #endif
 #include <SDL.h>
 #include <SDL_opengl.h>
@@ -16,9 +16,9 @@
 #include <sstream>
 
 #ifdef _WINDOWS
-	#define RESOURCE_FOLDER ""
+#define RESOURCE_FOLDER ""
 #else
-	#define RESOURCE_FOLDER "NYUCodebase.app/Contents/Resources/"
+#define RESOURCE_FOLDER "NYUCodebase.app/Contents/Resources/"
 #endif
 
 using namespace std;
@@ -26,7 +26,7 @@ using namespace std;
 #define FIXED_TIMESTEP 0.0166666f
 #define MAX_TIMESTEPS 6
 #define SPRITE_COUNT_X 30
-#define SPRITE_COUNT_Y 30
+#define SPRITE_COUNT_Y 16
 #define TILE_SIZE 0.2f
 
 unsigned char **levelData;
@@ -39,16 +39,18 @@ Matrix viewMatrix;
 int mapHeight;
 int mapWidth;
 
+GLuint sheet;
+
 SDL_Window* displayWindow;
 
-GLuint LoadTexture(const char *image_path){
+GLuint LoadTexture(const char *image_path, int type = GL_RGBA){
 	SDL_Surface *surface = IMG_Load(image_path);
 
 	GLuint textureID;
 	glGenTextures(1, &textureID);
 	glBindTexture(GL_TEXTURE_2D, textureID);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, surface->w, surface->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, surface->pixels);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, surface->w, surface->h, 0, type, GL_UNSIGNED_BYTE, surface->pixels);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -62,61 +64,56 @@ void worldToTileCoordinates(float worldX, float worldY, int *gridX, int *gridY)
 	*gridX = (int)(worldX / TILE_SIZE);
 	*gridY = (int)(-worldY / TILE_SIZE);
 }
-void tileToWorldCoordinates(float *worldX, float *worldY, int gridX, int gridY){
-	*worldX = (float)(gridX * TILE_SIZE);
-	*worldY = (float)(gridY * TILE_SIZE);
-}
 
-struct button{
-	int locationX;
-	int locationY;
-	bool On;
-	float timer;
-};
+int buttonCount = 4;
+int keyCount = 4;
+std::vector<float> vertexData;
+std::vector<float> texCoordData;
+void makeMap(){
+	vertexData.clear();
+	texCoordData.clear();
+	for (int y = 0; y < mapHeight; y++){
+		for (int x = 0; x < mapWidth; x++){
+			if (levelData[y][x] != 0){
+				float u = (float)(((int)levelData[y][x]) % SPRITE_COUNT_X) / (float)SPRITE_COUNT_X;
+				float v = (float)(((int)levelData[y][x]) / SPRITE_COUNT_X) / (float)SPRITE_COUNT_Y;
 
-struct key{
-	int spriteValue;
-	float positionX;
-	float positionY;
-};
+				float spriteWidth = 1.0f / (float)SPRITE_COUNT_X;
+				float spriteHeight = 1.0f / (float)SPRITE_COUNT_Y;
 
-void generateKeyLocation(vector<key>& keyList){
-	if (keyList.size() != 3){
-		return;
-	}
-	int ind1 = int(keyList[0].positionY);
-	int ind2 = int(keyList[0].positionX);
-	levelData[ind1][ind2] = char(15);
+				vertexData.insert(vertexData.end(), {
+					TILE_SIZE * x, -TILE_SIZE * y,
+					TILE_SIZE * x, (-TILE_SIZE * y) - TILE_SIZE,
+					(TILE_SIZE * x) + TILE_SIZE, (-TILE_SIZE * y) - TILE_SIZE,
 
-}
+					TILE_SIZE * x, -TILE_SIZE * y,
+					(TILE_SIZE * x) + TILE_SIZE, (-TILE_SIZE * y) - TILE_SIZE,
+					(TILE_SIZE * x) + TILE_SIZE, -TILE_SIZE * y
+				});
 
-bool spikeCollisions(float& varX, float& varY){
-	float left = float(int(varX));
-	float bot = float(int(varY) + 1);
-	float top = bot - 0.3;
-	float right = left + 1.0;
+				texCoordData.insert(texCoordData.end(), {
+					u, v,
+					u, v + (spriteHeight),
+					u + spriteWidth, v + (spriteHeight),
 
-	if (left < varX && varX < right){
-		if (varY > top && varY < bot){
-			return true;
+					u, v,
+					u + spriteWidth, v + (spriteHeight),
+					u + spriteWidth, v
+				});
+			}
 		}
 	}
-	return false;
 }
 
-void buttonSwitch(button& swt){
-	levelData[swt.locationY][swt.locationX] = char(int(levelData[swt.locationY][swt.locationX]) + 60);
-	swt.On = true;
-	swt.timer = 0.0;
-}
-
-GLuint sheet;
+Mix_Chunk *pick;
+Mix_Chunk *jump;
 
 enum objecttype{ hero, enemy, hazard, rock, jumpPad, keys, openButtons };
 
 //-------------------------------------------------
 
-class gameObjects{
+class GameObject{
+public:
 	objecttype type;
 
 	int spriteLocation;
@@ -129,171 +126,236 @@ class gameObjects{
 
 	Matrix objectMatrix;
 
-	vector<int> keyValues;
-	vector<button> buttonLocation;
-
 	float direction;
 	bool jumper;
+	bool superJump;
 	bool win;
 
 	float accelerationY;
 	bool SocialStatus;  //This is only for the heroObject, villians don't have to worry about getting killed
 	bool pursuit;
 
-public:
-	gameObjects(){}
-	gameObjects(string type, float xPos, float yPos){
-		gravity = -9.81;
+	bool isSolid(int index, int xPos, int yPos){
+		//walls, floor, ceiling
+		if (index == 32) return true;
+		else if (index == 1) return true;
+		else if (index == 2) return true;
+		else if (index == 152) return true;
+		else if (index == 34) return true;
+		else if (index == 36) return true;
+		else if (index == 37) return true;
+		else if (index == 224) return true;
+		else if (index == 225) return true;
+		else if (index == 194) return true;
+		else if (index == 195) return true;
+		else if (index == 108) {
+			superJump = true; return true;
+		}
+		//spikes
+		else if (index == 70){
+			SocialStatus = false;
+			return true;
+		}
+		else if (index == 130){
+			win = true;
+		}
+		// //button values are 74, 75, 104, 105    off switches
+		//on switches are 134, 135, 164, 165
+		else if (index == 74) return true;
+		else if (index == 75) return true;
+		else if (index == 104) return true;
+		else if (index == 105) return true;
+		else if (index == 134) return true;
+		else if (index == 135) return true;
+		else if (index == 164) return true;
+		else if (index == 165) return true;
+		else{
+			return false;
+		}
+	}
+
+	void keysAndLock(int index, int xPos, int yPos){
+		if (index == 44){
+			Mix_PlayChannel(-1, pick, 0);
+			levelData[yPos][xPos] = 0;
+			for (int y = 0; y < mapHeight; y++){
+				for (int x = 0; x < mapWidth; x++){
+					if (levelData[y][x] == 224){
+						levelData[y][x] = 0;
+						makeMap();
+						break;
+					}
+				}
+			}
+			keyCount--;
+		}
+		else if (index == 14){
+			Mix_PlayChannel(-1, pick, 0);
+			levelData[yPos][xPos] = 0;
+			for (int y = 0; y < mapHeight; y++){
+				for (int x = 0; x < mapWidth; x++){
+					if (levelData[y][x] == 194){
+						levelData[y][x] = 0;
+						makeMap();
+						break;
+					}
+				}
+			}
+			keyCount--;
+		}
+		else if (index == 45){
+			Mix_PlayChannel(-1, pick, 0);
+			levelData[yPos][xPos] = 0;
+			for (int y = 0; y < mapHeight; y++){
+				for (int x = 0; x < mapWidth; x++){
+					if (levelData[y][x] == 225){
+						levelData[y][x] = 0;
+						makeMap();
+						break;
+					}
+				}
+			}
+			keyCount--;
+		}
+		else if (index == 15){
+			Mix_PlayChannel(-1, pick, 0);
+			levelData[yPos][xPos] = 0;
+			for (int y = 0; y < mapHeight; y++){
+				for (int x = 0; x < mapWidth; x++){
+					if (levelData[y][x] == 195){
+						levelData[y][x] = 0;
+						makeMap();
+						break;
+					}
+				}
+			}
+			keyCount--;
+		}
+	}
+	void trapDoor(int index, int xPos, int yPos){
+		if (index == 396){
+			levelData[yPos][xPos] = 0;
+			makeMap();
+		}
+	}
+	// //button values are 74, 75, 104, 105    off switches
+	//on switches are 134, 135, 164, 165
+	void buttons(int index, int xPos, int yPos){
+		if (index == 74){
+			Mix_PlayChannel(-1, pick, 0);
+			levelData[yPos][xPos] = 134;
+			buttonCount--;
+			makeMap();
+		}
+		else if (index == 75){
+			Mix_PlayChannel(-1, pick, 0);
+			levelData[yPos][xPos] = 135;
+			buttonCount--;
+			makeMap();
+		}
+		else if (index == 104){
+			Mix_PlayChannel(-1, pick, 0);
+			levelData[yPos][xPos] = 164;
+			buttonCount--;
+			makeMap();
+		}
+		else if (index == 105){
+			Mix_PlayChannel(-1, pick, 0);
+			levelData[yPos][xPos] = 165;
+			buttonCount--;
+			makeMap();
+		}
+	}
+
+	GameObject(){}
+	GameObject(string ty, float xPos, float yPos){
+		gravity = -2.0f;
 		SocialStatus = true;
 		pursuit = false;
 		direction = 0.0f;
 		jumper = false;
+		superJump = false;
 		win = false;
-		if (type == "Player"){
+		if (ty == "Player"){
 			type = hero;
 			spriteLocation = 19;
+			velocityX = 0.75f;
 		}
-		else if (type == "Enemy"){
+		else if (ty == "Enemy"){
 			type = enemy;
 			spriteLocation = 79;
+			velocityX = 0.5f;
 		}
 		positionX = xPos;
 		positionY = yPos;
 		velocityY = 0.0f;
-		velocityX = 0.5f;
 	}
-
-	float getXPosition(){ return positionX; }
-	float getYPosition(){ return positionY; }
-
-	bool getWinStatus(){ return win; }
-	void revertWin(){ win = false; }
-	bool getSocialStatus(){ return SocialStatus; }
-
-	bool collide(float& varX, float& varY){
-		//varX and varY are the indexes of the matrices, 0.2 is the uniform length of a side of a tile
-
-		if (levelData[int(varY)][int(varX)] == '0'){
-			return false;
+	bool collide(float xPos, float yPos){
+		if (((positionX + TILE_SIZE / 2 >= xPos - TILE_SIZE / 2) && (positionX + TILE_SIZE / 2 <= xPos + TILE_SIZE / 2)) &&
+			(positionY - TILE_SIZE / 2 <= yPos + TILE_SIZE / 2) && (positionY + TILE_SIZE/2 >= yPos - TILE_SIZE/2)){
+			return true;
+		}
+		else if (((positionX - TILE_SIZE / 2 >= xPos - TILE_SIZE / 2) && (positionX - TILE_SIZE / 2 <= xPos + TILE_SIZE / 2)) &&
+			(positionY - TILE_SIZE / 2 <= yPos + TILE_SIZE / 2) && (positionY + TILE_SIZE / 2 >= yPos - TILE_SIZE / 2)){
+			return true;
 		}
 
-		float ed1 = float(int(varX));
-		float ed2 = float(int(varX) + 1);
-
-		float edy1 = float(int(varY));
-		float edy2 = float(int(varY) + 1);
-
-		if (ed1 < varX && varX < ed2){
-			if (varY > edy1 && varY < edy2){
-				return true;
-			}
-		}
 		return false;
 	}
-
-	void fall(){
-		jumper = true;
+	void collisionX(){
+		int gridX = 0;
+		int gridY = 0;
+		float penetration_x = 0.0f;
+		//Right
+		worldToTileCoordinates(positionX + TILE_SIZE / 2, positionY, &gridX, &gridY);
+		if (isSolid(levelData[gridY][gridX], gridX, gridY)){
+			if (levelData[gridY][gridX] != 108) superJump = false;
+			buttons(levelData[gridY][gridX], gridX, gridY);
+			penetration_x = (positionX + TILE_SIZE / 2) - (TILE_SIZE * gridX);
+			positionX -= (penetration_x + 0.003);
+		}
+		keysAndLock(levelData[gridY][gridX], gridX, gridY);
+		//Left
+		worldToTileCoordinates(positionX - TILE_SIZE / 2, positionY, &gridX, &gridY);
+		if (isSolid(levelData[gridY][gridX], gridX, gridY)){
+			if (levelData[gridY][gridX] != 108) superJump = false;
+			buttons(levelData[gridY][gridX], gridX, gridY);
+			penetration_x = (TILE_SIZE * gridX) + TILE_SIZE - (positionX - TILE_SIZE / 2);
+			positionX += (penetration_x + 0.003);
+		}
+		keysAndLock(levelData[gridY][gridX], gridX, gridY);
+	}
+	void collisionY(){
+		int gridX = 0;
+		int gridY = 0;
+		float penetration_y = 0.0f;
+		//bottom
+		worldToTileCoordinates(positionX, positionY - TILE_SIZE/2, &gridX, &gridY);
+		if (isSolid(levelData[gridY][gridX], gridX, gridY)){
+			if (levelData[gridY][gridX] == 108) superJump = true;
+			else superJump = false;
+			buttons(levelData[gridY][gridX], gridX, gridY);
+			penetration_y = (-TILE_SIZE * gridY) - (positionY - TILE_SIZE / 2);
+			positionY += (penetration_y + 0.002);
+			switchOn = false;
+			jumper = false;
+		}
+		keysAndLock(levelData[gridY][gridX], gridX, gridY);
+		//top
+		worldToTileCoordinates(positionX, positionY + TILE_SIZE / 2, &gridX, &gridY);
+		if (isSolid(levelData[gridY][gridX], gridX, gridY)){
+			//penetration_y = (positionY + TILE_SIZE / 2) - (-TILE_SIZE*gridY);
+			velocityY = 0.0f;
+			positionY -= (penetration_y + 0.003);
+		}
+		keysAndLock(levelData[gridY][gridX], gridX, gridY);
 	}
 
-	bool spikeColTwo(float& varX, float& varY){
-		float top = float(int(varY)) + 0.6;
-		float bot = top + 0.4;
-
-		if (varX > float(int(varX)) && varX < float(int(varX) + 1)){
-			if (varY > top && varY < bot){
-				return true;
-			}
-		}
-		return false;
-	}
-
-	void death(){
-		SocialStatus = false;
-		return;
-	}
-
-	void collisions(){
-		//positionX and positionY are both float variables for the table.  WE convert them into values for the vertices.
-		float rightEdge = positionX + 1.0;
-		float botEdge = positionY + 1.0;
-
-		float botR1Side = positionY + 0.2;
-		float botR2Side = positionY + 0.8;
-
-		float topSideRef1 = positionX + 0.2;
-		float topSideRef2 = positionX + 0.8;
-
-
-		//winning
-		if (int(levelData[int(botEdge)][int(topSideRef2)]) == 130){
-			win = true;
-		}
-
-		// jumpPad
-
-		if (int(levelData[int(botEdge)][int(topSideRef2)]) == 233){
-			velocityY = 12.0;
-			positionY -= 0.0001;
-		}
-
-		//button switches
-		if (int(levelData[int(botEdge)][int(topSideRef2)]) == 74 || int(levelData[int(botEdge)][int(topSideRef1)]) == 74){
-			buttonSwitch(buttonLocation[0]);
-		}
-
-		//trapdoor code
-		if (int(levelData[int(botEdge)][int(topSideRef2)]) == 38){
-			levelData[int(botEdge)][int(topSideRef2)] = char(194);
-		}
-
-		//leftCollisions
-		if (collide(positionX, botR1Side) || collide(positionX, botR2Side)){
-			if (int(levelData[int(botEdge)][int(topSideRef1)]) != 70){
-				positionX = float(int(positionX) + 1);
-				positionX += 0.00001;
-			}
-		}
-
-		//rightCollisions
-		if (collide(rightEdge, botR1Side) || collide(rightEdge, botR2Side)){
-			if (int(levelData[int(botEdge)][int(topSideRef1)]) != 70){
-				positionX = float(int(positionX));
-				positionX -= 0.00001;
-			}
-		}
-
-		//topCollisions
-		if (collide(topSideRef1, positionY) || collide(topSideRef2, positionY)){
-			velocityY = 0.0;
-			positionY = float(int(positionY) + 1);
-			positionY += 0.002;
-		}
-
-		//bottomCollisions
-		if (collide(topSideRef1, botEdge) || collide(topSideRef2, botEdge)){
-			if (int(levelData[int(botEdge)][int(topSideRef1)]) == 70){
-				if (spikeColTwo(topSideRef1, botEdge) && spikeColTwo(topSideRef2, botEdge)){
-					death();
-				}
-			}
-			if (int(levelData[int(botEdge)][int(topSideRef1)]) != 70){
-				jumper = false;
-				positionY = float(int(positionY));
-			}
-		}
-
-		if (int(levelData[int(botEdge)][int(positionX)]) == 194 && int(levelData[int(botEdge)][int(positionX) + 1]) == 194){
-			fall();
-		}
-	}
-	//-------------------------------------------------
-
-	//The villians pursuitFunctions
 	bool inSight(float& playerVarX, float& playerVarY){
-		float leftEdge = positionX - 3.0;
-		float rightEdge = positionX + 4.0;
-		float topEdge = positionY + 3.0;
-		float bottomEdge = positionY - 2.0;
+		float leftEdge = positionX - (0.5 + TILE_SIZE/2);
+		float rightEdge = positionX + (0.5 + TILE_SIZE/2);
+		float topEdge = positionY + (0.5 + TILE_SIZE/2);
+		float bottomEdge = positionY - (0.5 + TILE_SIZE/2);
 
 		if (playerVarX < rightEdge && playerVarX > leftEdge){
 			if (playerVarY < topEdge && playerVarY > bottomEdge){
@@ -313,109 +375,68 @@ public:
 		}
 		return false;
 	}
-
-	void patrol(float& elapsed){
-		positionX += velocityX*elapsed*direction;
-	}
-
-	void pursue(float playerVarX, float playerVarY){    //
+	bool switchOn = false;
+	void pursue(float playerVarX, float playerVarY, float elapsed){    //
+		direction = 0.0f;
 		if (inSight(playerVarX, playerVarY)){
 			if (playerVarX > positionX){
 				direction = 1.0f;
+				jumper = false;
+				velocityY = 0.0f;
 			}
 			else if (playerVarX < positionX){
 				direction = -1.0f;
+				velocityY = 0.0f;
+				jumper = false;
 			}
 		}
 		else{
-			direction = 0.0f;
+			if (switchOn == false){
+				if (jumper == false){
+					velocityY = 0.1;
+					switchOn = true;
+					jumper = true;
+				}
+			}
+			else if (switchOn == true){
+				velocityY += elapsed*gravity;
+			}
 		}
-	}
-	//----------------------
-
-	void jump(){
-		if (jumper == false){
-			velocityY = 3.0;
-			jumper = true;
-		}
-	}
-
-	void keyPickUp(){
-		int rightEdge = int(positionX) + 1;
-		int leftEdge = rightEdge - 1;
-		int topEdge = int(positionY);
-		int botEdge = topEdge + 1;
-
-		int righ = int(positionX) + 2;
-
-		if (int(levelData[int(positionY)][righ]) == 14){
-			levelData[int(positionY)][righ] = char(194);
-			keyValues.push_back(14);
-		}
-		if (int(levelData[int(positionY)][righ]) == 15){
-			levelData[int(positionY)][righ] = char(194);
-			keyValues.push_back(15);
-		}
-		if (int(levelData[int(positionY)][righ]) == 44){
-			levelData[int(positionY)][righ] = char(194);
-			keyValues.push_back(44);
-		}
-		if (int(levelData[int(positionY)][righ]) == 45){
-			levelData[int(positionY)][righ] = char(194);
-			keyValues.push_back(45);
-		}
-	}
-
-	void jumpFall(float& elapsed){
 		velocityY += elapsed*gravity;
-		positionY += velocityY*elapsed - (0.5*gravity*(elapsed*elapsed));
-	}
+		positionY += velocityY*elapsed;
+		collisionY();
 
-	void objMove(float& elapsed){
 		positionX += velocityX*direction*elapsed;
+		collisionX();
 	}
 
-
-
-	//-----------------------
-	//Movement for GameObject
-	void move(float& elapsed, gameObjects& player){  //function to update positions
+	void update(float elapsed){
 		const Uint8 *keys = SDL_GetKeyboardState(NULL);
-		direction = 0.0;
-		if (this->type == hero){
-			if (keys[SDL_SCANCODE_W]){
-				jump();
+		direction = 0.0f;
+		if (keys[SDL_SCANCODE_W]){
+			if (jumper != true){
+				Mix_PlayChannel(-1, jump, 0);
+				velocityY = 2.5;
+				if (superJump == true){
+					velocityY = 4.0f;
+					superJump = false;
+				}
+				gravity = -2.0f;
+				jumper = true;
 			}
-
-			if (keys[SDL_SCANCODE_D]){
-				direction = 1.0;
-
-			}
-
-			if (keys[SDL_SCANCODE_A]){
-				direction = -1.0;
-			}
-
-			if (keys[SDL_SCANCODE_RETURN]){
-
-			}
-			if (keys[SDL_SCANCODE_P]){
-				keyPickUp();
-			}
-
-			if (jumper){ jumpFall(elapsed); }
-			objMove(elapsed);
 		}
-		//-------------------------------
-		else if (type == enemy){
-			pursue(player.getXPosition(), player.getYPosition());
-			objMove(elapsed);
+		if (keys[SDL_SCANCODE_D]){
+			direction = 1.0f;
+		}
+		if (keys[SDL_SCANCODE_A]){
+			direction = -1.0f;
 		}
 
-
-		//-------------------
-		//collision detection
-		collisions();
+		velocityY += gravity*elapsed;
+		positionY += velocityY*elapsed;
+		collisionY();
+		positionX += velocityX*direction*elapsed;
+		collisionX();
 	}
 	void draw(){    // Function that is responsible for drawing the character
 		float u = (float)((spriteLocation) % SPRITE_COUNT_X) / (float)SPRITE_COUNT_X;
@@ -463,15 +484,15 @@ public:
 	}
 };
 
-gameObjects player;
-vector<gameObjects> enemies;
+GameObject player;
+vector<GameObject> enemies;
 
 void placeEntity(string type, float x, float y){
 	if (type == "Player"){
-		player = gameObjects(type, x, y);
+		player = GameObject(type, x, y);
 	}
 	else if (type == "Enemy"){
-		enemies.push_back(gameObjects(type, x, y));
+		enemies.push_back(GameObject(type, x, y));
 	}
 }
 
@@ -556,15 +577,14 @@ bool readEntityData(std::ifstream &stream){
 			getline(lineStream, xPosition, ',');
 			getline(lineStream, yPosition, ',');
 
-			float placeX = atoi(xPosition.c_str()) / 30.0f * TILE_SIZE;
-			float placeY = atoi(yPosition.c_str()) / 16.0f * -TILE_SIZE;
+			float placeX = (float)atoi(xPosition.c_str()) * TILE_SIZE;
+			float placeY = (float)atoi(yPosition.c_str()) * -TILE_SIZE + 0.3;
 
 			placeEntity(type, placeX, placeY);
 		}
 	}
 	return true;
 }
-
 void DrawText(ShaderProgram *program, GLuint fontTexture, std::string text, float size, float spacing){
 	float texture_size = 1.0 / 16.0f;
 	std::vector<float> vertexData1;
@@ -575,11 +595,11 @@ void DrawText(ShaderProgram *program, GLuint fontTexture, std::string text, floa
 		float texture_y = (float)(((int)text[i]) / 16) / 16.0f;
 		vertexData1.insert(vertexData1.end(), {
 			((size + spacing) * i) + (-0.5f * size), 0.5f * size,
-			((size + spacing) * i) + (-0.5f * size), -0.5f * size-0.2f,
+			((size + spacing) * i) + (-0.5f * size), -0.5f * size - 0.2f,
 			((size + spacing) * i) + (0.5f * size), 0.5f * size,
-			((size + spacing) * i) + (0.5f * size), -0.5f * size-0.2f,
+			((size + spacing) * i) + (0.5f * size), -0.5f * size - 0.2f,
 			((size + spacing) * i) + (0.5f * size), 0.5f * size,
-			((size + spacing) * i) + (-0.5f * size), -0.5f * size-0.2f,
+			((size + spacing) * i) + (-0.5f * size), -0.5f * size - 0.2f,
 		});
 		texCoordData1.insert(texCoordData1.end(), {
 			texture_x, texture_y,
@@ -604,58 +624,24 @@ void DrawText(ShaderProgram *program, GLuint fontTexture, std::string text, floa
 	glDisableVertexAttribArray(program->positionAttribute);
 	glDisableVertexAttribArray(program->texCoordAttribute);
 }
-
-void render(){
-	player.draw();
-	for (int i = 0; i < enemies.size(); i++){
-		enemies.at(i).draw();
-	}
-}
-void update(float elapsed){
-	player.move(elapsed, player);
-	for (int i = 0; i < enemies.size(); i++){
-		enemies.at(i).move(elapsed, player);
-	}
-}
-
-std::vector<float> vertexData;
-std::vector<float> texCoordData;
-void makeMap(){
-	for (int y = 0; y < mapHeight; y++){
-		for (int x = 0; x < mapWidth; x++){
-			if (levelData[y][x] != 0){
-				float u = (float)(((int)levelData[y][x]) % SPRITE_COUNT_X) / (float)SPRITE_COUNT_X;
-				float v = (float)(((int)levelData[y][x]) / SPRITE_COUNT_X) / (float)SPRITE_COUNT_Y;
-
-				float spriteWidth = 1.0f / (float)SPRITE_COUNT_X;
-				float spriteHeight = 1.0f / (float)SPRITE_COUNT_Y;
-
-				vertexData.clear();
-				texCoordData.clear();
-
-				vertexData.insert(vertexData.end(), {
-					TILE_SIZE * x, -TILE_SIZE * y,
-					TILE_SIZE * x, (-TILE_SIZE * y) - TILE_SIZE,
-					(TILE_SIZE * x) + TILE_SIZE, (-TILE_SIZE * y) - TILE_SIZE,
-
-					TILE_SIZE * x, -TILE_SIZE * y,
-					(TILE_SIZE * x) + TILE_SIZE, (-TILE_SIZE * y) - TILE_SIZE,
-					(TILE_SIZE * x) + TILE_SIZE, -TILE_SIZE * y
-				});
-
-				texCoordData.insert(texCoordData.end(), {
-					u, v,
-					u, v + (spriteHeight),
-					u + spriteWidth, v + (spriteHeight),
-
-					u, v,
-					u + spriteWidth, v + (spriteHeight),
-					u + spriteWidth, v
-				});
+void readFile(string file){
+	ifstream infile(file);
+	string line;
+	while (getline(infile, line)){
+		if (line == "[header]"){
+			if (!readHeader(infile)){
+				break;
 			}
+		}
+		else if (line == "[layer]"){
+			readLayerData(infile);
+		}
+		else if (line == "[Object Layer 1]"){
+			readEntityData(infile);
 		}
 	}
 }
+
 void drawMap(GLuint sheet){
 	program->setModelMatrix(modelMatrix);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -675,70 +661,89 @@ void drawMap(GLuint sheet){
 	glDisableVertexAttribArray(program->texCoordAttribute);
 }
 
-void readFile(string file){
-	ifstream infile(file);
-	string line;
-	while (getline(infile, line)){
-		if (line == "[header]"){
-			if (!readHeader(infile)){
-				break;
-			}
-		}
-		else if (line == "[layer]"){
-			readLayerData(infile);
-		}
-		else if (line == "[Object Layer 1]"){
-			readEntityData(infile);
-		}
-	}
-}
-
 void centerPlayer(){
 	viewMatrix.identity();
 	viewMatrix.Scale(2.0f, 2.0f, 1.0f);
-	viewMatrix.Translate(-player.getXPosition(), -player.getYPosition(), 0.0f);
+	viewMatrix.Translate(-player.positionX, -player.positionY, 0.0f);
 	program->setViewMatrix(viewMatrix);
+}
+void screenShake(float& shake){
+		viewMatrix.identity();
+		centerPlayer();
+		viewMatrix.Translate(0.02f*shake, 0.002f*shake*-1.0f, 0.0f);
+		shake *= -1.0f;
+}
+void render(){
+	player.draw();
+	for (int i = 0; i < enemies.size(); i++){
+		enemies[i].draw();
+	}
+}
+void update(float elapsed){
+	player.update(elapsed);
+	for (int i = 0; i < enemies.size(); i++){
+		enemies[i].pursue(player.positionX, player.positionY, elapsed);
+		if (player.collide(enemies[i].positionX, enemies[i].positionY)){
+			player.SocialStatus = false;
+			break;
+		}
+	}
 }
 
 int main(int argc, char *argv[])
 {
 	SDL_Init(SDL_INIT_VIDEO);
-	displayWindow = SDL_CreateWindow("My Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1000, 600, SDL_WINDOW_OPENGL);
+	displayWindow = SDL_CreateWindow("My Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 360, SDL_WINDOW_OPENGL);
 	SDL_GLContext context = SDL_GL_CreateContext(displayWindow);
 	SDL_GL_MakeCurrent(displayWindow, context);
 	#ifdef _WINDOWS
 		glewInit();
 	#endif
 
-	glViewport(0, 0, 1000, 600);
-	GLuint font = LoadTexture("font2.png");
-	sheet = LoadTexture("spritesheet.png");
-	GLuint background = LoadTexture("background.png");
-	GLuint winScreen = LoadTexture("win.png");
-	GLuint loseScreen = LoadTexture("lose.png");
+		glViewport(0, 0, 640, 360);
+		GLuint font = LoadTexture("font2.png");
+		sheet = LoadTexture("spritesheet.png", GL_RGB);
+		GLuint background = LoadTexture("background.png");
+		GLuint winScreen = LoadTexture("win.png");
+		GLuint loseScreen = LoadTexture("lose.png");
 
-	Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 4096);
+		float count = 4;
+		float shake = 1.0f;
 
-	Mix_Music *music;
-	music = Mix_LoadMUS("music.mp3");
+		program = new ShaderProgram(RESOURCE_FOLDER"vertex_textured.glsl", RESOURCE_FOLDER"fragment_textured.glsl");
 
-	program = new ShaderProgram(RESOURCE_FOLDER"vertex_textured.glsl", RESOURCE_FOLDER"fragment_textured.glsl");
+		Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 4096);
 
-	readFile("FirstTiledMapOne.txt");
+		Mix_Music *music;
+		music = Mix_LoadMUS("music.mp3"); 
 
-	makeMap();
+		pick = Mix_LoadWAV("pickup.wav");
+		jump = Mix_LoadWAV("jump.wav");
 
-	float lastFrameTicks = 0.0f;
-	float ticks = (float)SDL_GetTicks() / 1000.0f;
-	lastFrameTicks = ticks;
+		float lastFrameTicks = 0.0f;
+		float ticks = (float)SDL_GetTicks() / 1000.0f;
+		lastFrameTicks = ticks;
 
-	projectionMatrix.setOrthoProjection(-3.55f, 3.55f, -4.0f, 4.0f, -1.0f, 1.0f);
-	enum GameState { STATE_MENU, STATE_LEVEL_ONE, STATE_LEVEL_TWO, STATE_LEVEL_THREE, STATE_WIN, STATE_LOSE };
-	int state = STATE_MENU;
+		projectionMatrix.setOrthoProjection(-3.55f, 3.55f, -4.0f, 4.0f, -1.0f, 1.0f);
+		enum GameState { STATE_MENU, STATE_LEVEL_ONE, STATE_LEVEL_TWO, STATE_LEVEL_THREE, STATE_WIN, STATE_LOSE };
+		int state = STATE_LEVEL_THREE;
 
-	glUseProgram(program->programID);
-	Mix_PlayMusic(music, -1);
-
+		if (state == STATE_MENU){
+			readFile("FirstTiledMap.txt");
+		}
+		else if (state == STATE_LEVEL_TWO){
+			readFile("SecondTiledMap.txt");
+		}
+		else if (state == STATE_LEVEL_THREE){
+			readFile("ThirdTileMap.txt");
+		}
+		float screenShakeValue = 0.0f;
+		float screenShakeSpeed = 5.0f;
+		float screenShakeIntensity = 0.5f;
+		makeMap();
+		glUseProgram(program->programID);
+		Mix_PlayMusic(music, -1);
+	
 	SDL_Event event;
 	bool done = false;
 	while (!done) {
@@ -764,8 +769,9 @@ int main(int argc, char *argv[])
 		float vertices[] = { -3.55f, -4.0f, 3.55f, -4.0f, 3.55f, 4.0f, -3.55f, -4.0f, 3.55f, 4.0f, -3.55f, 4.0f };
 		float texCoords[] = { 0.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0 };
 		float fixedElapsed = elapsed;
+
 		switch (state){
-		case STATE_MENU :
+		case STATE_MENU:
 			program->setModelMatrix(modelMatrix);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -803,22 +809,39 @@ int main(int argc, char *argv[])
 			program->setModelMatrix(modelMatrix);
 			DrawText(program, font, "\"W\" TO JUMP", 0.2f, 0.00001f);
 
-			if (keys[SDL_SCANCODE_E]){
+			modelMatrix.identity();
+			modelMatrix.Translate(-1.0f, -2.0f, 0.0f);
+			program->setModelMatrix(modelMatrix);
+			DrawText(program, font, "\"Z\" TO QUIT", 0.2f, 0.00001f);
+			if (keys[SDL_SCANCODE_Q]){
+				state = STATE_LOSE;
+			}
+			else if (keys[SDL_SCANCODE_E]){
 				state = STATE_LEVEL_ONE;
 			}
 			break;
 
 		case(STATE_LEVEL_ONE) :
-			if (player.getSocialStatus() == false){
+			if (player.SocialStatus == false){
+				screenShakeValue = 0.0f;
 				state = STATE_LOSE;
+				break;
 			}
-			else if (player.getWinStatus() == true){
-				player.revertWin();
+			if (player.win == true){
+				player.win = false;
+				count = 4;
+				screenShakeValue = 0.0f;
 				readFile("SecondTiledMap.txt");
+				screenShakeValue = 0.0f;
 				makeMap();
 				state = STATE_LEVEL_TWO;
+				break;
 			}
-			drawMap(sheet);
+			if (keys[SDL_SCANCODE_Z]){
+				screenShakeValue = 0.0f;
+				state = STATE_LOSE;
+				break;
+			}
 			if (fixedElapsed > FIXED_TIMESTEP * MAX_TIMESTEPS){
 				fixedElapsed = FIXED_TIMESTEP * MAX_TIMESTEPS;
 			}
@@ -827,20 +850,34 @@ int main(int argc, char *argv[])
 				update(FIXED_TIMESTEP);
 			}
 			update(fixedElapsed);
-
+			drawMap(sheet);
+			centerPlayer();
 			render();
+				screenShake(shake);
 			break;
 		case(STATE_LEVEL_TWO) :
-			if (player.getSocialStatus() != false){
+			if (player.SocialStatus == false){
+				screenShakeValue = 0.0f;
 				state = STATE_LOSE;
+				break;
 			}
-			else if (player.getWinStatus()){
-				player.revertWin();
+			else if (player.win == true){
+				player.win = false;
+				count = 4;
+				keyCount = 4;
+				screenShakeValue = 0.0f;
 				readFile("ThirdTileMap.txt");
+				vertexData.clear();
+				texCoordData.clear();
 				makeMap();
 				state = STATE_LEVEL_THREE;
+				break;
 			}
-			drawMap(sheet);
+			if (keys[SDL_SCANCODE_Z]){
+				screenShakeValue = 0.0f;
+				state = STATE_LOSE;
+				break;
+			}
 			if (fixedElapsed > FIXED_TIMESTEP * MAX_TIMESTEPS){
 				fixedElapsed = FIXED_TIMESTEP * MAX_TIMESTEPS;
 			}
@@ -849,18 +886,30 @@ int main(int argc, char *argv[])
 				update(FIXED_TIMESTEP);
 			}
 			update(fixedElapsed);
-
+			screenShakeValue += elapsed;
+			viewMatrix.Translate(0.0f, sin(screenShakeValue * screenShakeSpeed)*screenShakeIntensity, 0.0f);
+			drawMap(sheet);
+			centerPlayer();
 			render();
+				screenShake(shake);
 			break;
 		case(STATE_LEVEL_THREE) :
-			if (player.getSocialStatus() != false){
+			if (buttonCount == 0) player.win = true;
+			if (player.SocialStatus == false){
+				screenShakeValue = 0.0f;
 				state = STATE_LOSE;
+				break;
 			}
-			else if (player.getWinStatus()){
-				player.revertWin();
+			else if (player.win == true){
+				screenShakeValue = 0.0f;
 				state = STATE_WIN;
+				break;
 			}
-			drawMap(sheet);
+			if (keys[SDL_SCANCODE_Z]){
+				screenShakeValue = 0.0f;
+				state = STATE_LOSE;
+				break;
+			}
 			if (fixedElapsed > FIXED_TIMESTEP * MAX_TIMESTEPS){
 				fixedElapsed = FIXED_TIMESTEP * MAX_TIMESTEPS;
 			}
@@ -869,10 +918,17 @@ int main(int argc, char *argv[])
 				update(FIXED_TIMESTEP);
 			}
 			update(fixedElapsed);
-
+			screenShakeValue += elapsed;
+			viewMatrix.Translate(0.0f, sin(screenShakeValue * screenShakeSpeed)*screenShakeIntensity, 0.0f);
+			drawMap(sheet);
+			centerPlayer();
 			render();
+				screenShake(shake);
 			break;
 		case(STATE_WIN) :
+			viewMatrix.identity();
+			viewMatrix.Scale(1.0f, 1.0f, 1.0f);
+			program->setViewMatrix(viewMatrix);
 
 			program->setModelMatrix(modelMatrix);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -907,18 +963,31 @@ int main(int argc, char *argv[])
 			DrawText(program, font, "PRESS Q TO EXIT", 0.2f, 0.001f);
 
 			if (keys[SDL_SCANCODE_E]){
-				readFile("FirstTiledMapOne.txt");
+				keyCount = 4;
+				buttonCount = 4;
+				count = 4;
+				readFile("FirstTiledMap.txt");
+				vertexData.clear();
+				texCoordData.clear();
 				makeMap();
-				player.revertWin();
+				player.win = false;
 				enemies.clear();
 				state = STATE_LEVEL_ONE;
 			}
 			else if (keys[SDL_SCANCODE_Q]){
+				vertexData.clear();
+				texCoordData.clear();
 				enemies.clear();
+				Mix_FreeChunk(pick);
+				Mix_FreeChunk(jump);
+				Mix_FreeMusic(music);
 				SDL_Quit();
 			}
 			break;
 		case(STATE_LOSE) :
+			viewMatrix.identity();
+			viewMatrix.Scale(1.0f, 1.0f, 1.0f);
+			program->setViewMatrix(viewMatrix);
 
 			program->setModelMatrix(modelMatrix);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -953,14 +1022,24 @@ int main(int argc, char *argv[])
 			DrawText(program, font, "PRESS Q TO EXIT", 0.2f, 0.001f);
 
 			if (keys[SDL_SCANCODE_E]){
+				keyCount = 4;
+				buttonCount = 4;
+				count = 4;
 				enemies.clear();
-				player.revertWin();
-				readFile("FirstTiledMapOne.txt");
+				player.win = false;
+				readFile("FirstTiledMap.txt");
+				vertexData.clear();
+				texCoordData.clear();
 				makeMap();
 				state = STATE_LEVEL_ONE;
 			}
 			else if (keys[SDL_SCANCODE_Q]){
+				vertexData.clear();
+				texCoordData.clear();
 				enemies.clear();
+				Mix_FreeChunk(pick);
+				Mix_FreeChunk(jump);
+				Mix_FreeMusic(music);
 				SDL_Quit();
 			}
 			break;
@@ -968,6 +1047,8 @@ int main(int argc, char *argv[])
 
 		SDL_GL_SwapWindow(displayWindow);
 	}
+	Mix_FreeChunk(pick);
+	Mix_FreeChunk(jump);
 	Mix_FreeMusic(music);
 	SDL_Quit();
 	return 0;

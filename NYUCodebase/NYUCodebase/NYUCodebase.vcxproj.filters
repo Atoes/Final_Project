@@ -39,7 +39,24 @@
     <None Include="fragment_textured.glsl" />
   </ItemGroup>
   <ItemGroup>
-    <Text Include="FirstTiledMapOne.txt">
+    <Image Include="background.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="font2.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="lose.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="spritesheet.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="win.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="FirstTiledMap.txt">
       <Filter>Resource Files</Filter>
     </Text>
     <Text Include="SecondTiledMap.txt">
@@ -50,27 +67,13 @@
     </Text>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="spritesheet.png">
-      <Filter>Resource Files</Filter>
-    </Image>
-    <Image Include="font2.png">
-      <Filter>Resource Files</Filter>
-    </Image>
-    <Image Include="tiles.png">
-      <Filter>Resource Files</Filter>
-    </Image>
-    <Image Include="background.png">
-      <Filter>Resource Files</Filter>
-    </Image>
-    <Image Include="win.png">
-      <Filter>Resource Files</Filter>
-    </Image>
-    <Image Include="lose.png">
-      <Filter>Resource Files</Filter>
-    </Image>
-  </ItemGroup>
-  <ItemGroup>
     <Media Include="music.mp3">
+      <Filter>Resource Files</Filter>
+    </Media>
+    <Media Include="pickup.wav">
+      <Filter>Resource Files</Filter>
+    </Media>
+    <Media Include="jump.wav">
       <Filter>Resource Files</Filter>
     </Media>
   </ItemGroup>

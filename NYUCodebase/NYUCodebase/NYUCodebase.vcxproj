@@ -88,24 +88,21 @@
     <None Include="vertex.glsl" />
   </ItemGroup>
   <ItemGroup>
-    <Text Include="FirstTiledMapOne.txt" />
+    <Image Include="background.png" />
+    <Image Include="font2.png" />
+    <Image Include="lose.png" />
+    <Image Include="spritesheet.png" />
+    <Image Include="win.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="FirstTiledMap.txt" />
     <Text Include="SecondTiledMap.txt" />
     <Text Include="ThirdTileMap.txt" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="background.png" />
-    <Image Include="font2.png" />
-    <Image Include="lose.png" />
-    <Image Include="spritesheet.png">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
-      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</DeploymentContent>
-      <DeploymentContent>false</DeploymentContent>
-    </Image>
-    <Image Include="tiles.png" />
-    <Image Include="win.png" />
-  </ItemGroup>
-  <ItemGroup>
+    <Media Include="jump.wav" />
     <Media Include="music.mp3" />
+    <Media Include="pickup.wav" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
